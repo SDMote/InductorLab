@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "inductor-lab"
+version = "0.1.0"
+description = "Geometric-programming-based inductor design and optimization"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "sympy",
+    "gpkit",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "jupyter",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/inductor_lab"]
