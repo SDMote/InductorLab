@@ -1,5 +1,2 @@
 #!/bin/bash
-script_root=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-repo_root=$(dirname -- "${script_root}")
-
-apptainer exec "${repo_root}/palace.sif" palace -np 8 $1
+apptainer exec "$HOME/Containers/palace_016.sif" palace -np $(($(nproc))) $1
