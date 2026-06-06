@@ -13,6 +13,7 @@ pdk = replace(SG13G2, t_sub=BACKLAPPING[200])
 
 
 def print_design(label, d):
+    rho = (d.d_out - d.d_in) / (d.d_out + d.d_in)
     print(f"""
 {label}
 {"=" * len(label)}
@@ -25,6 +26,7 @@ l      = {d.l * 1e6:.4f} um
 d_out  = {d.d_out * 1e6:.4f} um
 d_avg  = {d.d_avg * 1e6:.4f} um
 d_in   = {d.d_in * 1e6:.4f} um
+rho    = {rho:.4f}
 
 Performance
 -----------

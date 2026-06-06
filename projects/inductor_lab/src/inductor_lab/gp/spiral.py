@@ -83,7 +83,7 @@ def design_inductor(
     pdk,
     topology: Topology = Topology.DIFFERENTIAL,
     min_srf_hz: float = 7e9,
-    max_area_m2: float = (250e-6)**2,
+    max_area_m2: float = None,
 ) -> InductorDesign:
     """Maximise Q for an octagonal spiral inductor via GP.
 
@@ -93,7 +93,7 @@ def design_inductor(
         pdk:          PDK parameters dataclass (SG13G2Params or compatible)
         topology:     Topology.DIFFERENTIAL (default) or Topology.SINGLE_ENDED
         min_srf_hz:   minimum self-resonance frequency [Hz]
-        max_area_m2:  maximum bounding-box area [m^2]
+        max_area_m2:  maximum bounding-box area [m^2]; unconstrained if None (default)
 
     Returns:
         InductorDesign with optimised geometry and estimated performance.
@@ -165,9 +165,8 @@ def design_inductor(
     K6_c = Variable("K6", k6, "ohm*m^2", constant=True)
     K7_c = Variable("K7", k7, "F/m^2",   constant=True)
 
-    w_min_c = Variable("w_min", metal.w_min, "m",   constant=True)
-    s_min_c = Variable("s_min", metal.s_min, "m",   constant=True)
-    A_max_c = Variable("A_max", max_area_m2, "m^2", constant=True)
+    w_min_c = Variable("w_min", metal.w_min, "m", constant=True)
+    s_min_c = Variable("s_min", metal.s_min, "m", constant=True)
 
     # -- Design variables -----------------------------------------------------
     d_out = Variable("d_out", "m",   positive=True)
@@ -212,11 +211,13 @@ def design_inductor(
         Q_min * (cs_factor*R_p + (rho**2 + 1)*R_s) / (rho * cs_factor*R_p) + delta + gamma <= 1,
         delta / 2 + gamma / 2 <= 1,
         k_sr**2 * gamma / 2 + delta / 2 <= 1,
-        w      >= w_min_c,
-        s      >= s_min_c,
-        d_out**2 <= A_max_c,
+        w >= w_min_c,
+        s >= s_min_c,
         d_avg + n*s + n*w <= d_out,
     ]
+    if max_area_m2 is not None:
+        A_max_c = Variable("A_max", max_area_m2, "m^2", constant=True)
+        constraints.append(d_out**2 <= A_max_c)
 
     sol = Model(Q_min**-1, constraints).solve()
 
