@@ -1,0 +1,229 @@
+; IHP SG13G2 technology file for ASITIC
+; rsh in milli-Ohms/square; rho in ohm-cm; t,d in microns
+; Generated from SG13G2_200um.xml and Process Spec Rev 1.2
+;
+; CRITICAL: rsh values are in milli-Ohms/square (NOT Ohms/square)
+;   Metal1    = 110 mOhm/sq  (0.110 Ohm/sq)
+;   Metal2-5  =  88 mOhm/sq  (0.088 Ohm/sq)
+;   TopMetal1 =  18 mOhm/sq  (0.018 Ohm/sq)
+;   TopMetal2 =  11 mOhm/sq  (0.011 Ohm/sq)
+
+<chip>
+chipx = 512
+chipy = 512
+fftx  = 256
+ffty  = 256
+TechFile = ihp_sg13g2.tek
+TechPath = .
+freq  = 2.4
+eddy  = 0
+eddy  = 1
+
+; -------------------------------------------------------
+; SUBSTRATE LAYERS (bottom-up)
+; Layer 0: Si bulk  (50 ohm-cm, 750 um thick)
+; Layer 1: EPI      (20 ohm-cm, 3.75 um thick)
+; Layers 2-9: oxide/dielectric layers, one per metal
+; -------------------------------------------------------
+
+<layer> 0          ; Si bulk substrate
+rho = 50.0         ; ohm-cm (spec target RSBLK, range 37.5-62.5)
+t   = 750.0        ; microns
+eps = 11.9
+
+<layer> 1          ; EPI layer
+rho = 20.0         ; ohm-cm
+t   = 3.75         ; microns
+eps = 11.9
+
+<layer> 2          ; ILD0: Activ to Metal1 (640 nm)
+rho = 1e10
+t   = 0.64
+eps = 4.1
+
+<layer> 3          ; Metal1 layer + ILD1 above (420nm metal + 540nm ILD = 960nm)
+rho = 1e10
+t   = 0.96
+eps = 4.1
+
+<layer> 4          ; Metal2 layer + ILD2 above (490nm metal + 540nm ILD = 1030nm)
+rho = 1e10
+t   = 1.03
+eps = 4.1
+
+<layer> 5          ; Metal3 layer + ILD3 above
+rho = 1e10
+t   = 1.03
+eps = 4.1
+
+<layer> 6          ; Metal4 layer + ILD4 above
+rho = 1e10
+t   = 1.03
+eps = 4.1
+
+<layer> 7          ; Metal5 layer + ILD to TopMetal1 (490nm metal + 850nm ILD = 1340nm)
+rho = 1e10
+t   = 1.34
+eps = 4.1
+
+<layer> 8          ; TopMetal1 layer + ILD to TopMetal2 (2000nm metal + 2800nm ILD = 4800nm)
+rho = 1e10
+t   = 4.80
+eps = 4.1
+
+<layer> 9          ; TopMetal2 + passivation (3000nm metal + ~1900nm passivation)
+rho = 1e10
+t   = 4.90
+eps = 6.6
+
+; -------------------------------------------------------
+; METAL LAYERS (bottom-up, indexed 0..7)
+; -------------------------------------------------------
+
+<metal> 0          ; substrate contact tap
+layer = 1
+rsh   = 30         ; mOhm/sq (approximate, not used for inductors)
+t     = 0.10
+d     = 0.50
+name  = msub
+color = red
+
+<metal> 1          ; Metal1
+layer = 3
+rsh   = 110        ; mOhm/sq  (spec: 85-135, target 110)
+t     = 0.42       ; microns (420 nm)
+d     = 0.0
+name  = Metal1
+color = blue
+
+<metal> 2          ; Metal2
+layer = 4
+rsh   = 88         ; mOhm/sq  (spec: 73-103, target 88)
+t     = 0.49       ; microns (490 nm)
+d     = 0.0
+name  = Metal2
+color = green
+
+<metal> 3          ; Metal3
+layer = 5
+rsh   = 88
+t     = 0.49
+d     = 0.0
+name  = Metal3
+color = yellow
+
+<metal> 4          ; Metal4
+layer = 6
+rsh   = 88
+t     = 0.49
+d     = 0.0
+name  = Metal4
+color = orange
+
+<metal> 5          ; Metal5
+layer = 7
+rsh   = 88
+t     = 0.49
+d     = 0.0
+name  = Metal5
+color = grey
+
+<metal> 6          ; TopMetal1
+layer = 8
+rsh   = 18         ; mOhm/sq  (spec: 15-21, target 18)
+t     = 2.00       ; microns (2000 nm)
+d     = 0.0
+name  = TopMetal1
+color = white
+
+<metal> 7          ; TopMetal2  <-- PRIMARY INDUCTOR LAYER
+layer = 9
+rsh   = 11         ; mOhm/sq  (spec: 7.5-14.5, target 11)
+t     = 3.00       ; microns (3000 nm)
+d     = 0.0
+name  = TopMetal2
+color = cyan
+
+; -------------------------------------------------------
+; VIA LAYERS (bottom-up, indexed 0..6)
+; All require: top, bottom, r, width, space, overplot1, overplot2
+; r = resistance per single via in Ohms (spec targets)
+; width/space/overplot in microns (from SG13G2 design rules)
+; -------------------------------------------------------
+
+<via> 0            ; Cont: Activ/GatePoly -> Metal1
+top      = 1       ; Metal1
+bottom   = 0       ; msub
+r        = 17.0    ; Ohms/via (spec target RCM1NSD)
+width    = 0.16    ; microns (min via size)
+space    = 0.18    ; microns (min via spacing)
+overplot1 = 0.10   ; Metal1 enclosure of via
+overplot2 = 0.10   ; bottom enclosure
+name     = Cont
+color    = purple
+
+<via> 1            ; Via1: Metal1 -> Metal2
+top      = 2
+bottom   = 1
+r        = 9.0     ; Ohms/via (spec target, range 5-20)
+width    = 0.19
+space    = 0.22
+overplot1 = 0.05
+overplot2 = 0.05
+name     = Via1
+color    = brown
+
+<via> 2            ; Via2: Metal2 -> Metal3
+top      = 3
+bottom   = 2
+r        = 9.0
+width    = 0.19
+space    = 0.22
+overplot1 = 0.05
+overplot2 = 0.05
+name     = Via2
+color    = navy
+
+<via> 3            ; Via3: Metal3 -> Metal4
+top      = 4
+bottom   = 3
+r        = 9.0
+width    = 0.19
+space    = 0.22
+overplot1 = 0.05
+overplot2 = 0.05
+name     = Via3
+color    = lightblue
+
+<via> 4            ; Via4: Metal4 -> Metal5
+top      = 5
+bottom   = 4
+r        = 9.0
+width    = 0.19
+space    = 0.22
+overplot1 = 0.05
+overplot2 = 0.05
+name     = Via4
+color    = wheat
+
+<via> 5            ; TopVia1: Metal5 -> TopMetal1
+top      = 6
+bottom   = 5
+r        = 2.2     ; Ohms/via (spec target RTV1, range 1-4)
+width    = 0.42
+space    = 0.42
+overplot1 = 0.10
+overplot2 = 0.10
+name     = TopVia1
+color    = pink
+
+<via> 6            ; TopVia2: TopMetal1 -> TopMetal2
+top      = 7
+bottom   = 6
+r        = 1.1     ; Ohms/via (spec target RTV2, range 0.5-2.2)
+width    = 0.90
+space    = 0.90
+overplot1 = 0.20
+overplot2 = 0.20
+name     = TopVia2
+color    = magenta
