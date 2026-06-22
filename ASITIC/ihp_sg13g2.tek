@@ -21,14 +21,15 @@ eddy  = 1
 
 ; -------------------------------------------------------
 ; SUBSTRATE LAYERS (bottom-up)
-; Layer 0: Si bulk  (50 ohm-cm, 750 um thick)
+; Layer 0: Si bulk  (50 ohm-cm, 280 um thick, back-lapped)
 ; Layer 1: EPI      (20 ohm-cm, 3.75 um thick)
 ; Layers 2-9: oxide/dielectric layers, one per metal
+; Layer 10:   passivation (nitride) above TopMetal2's SiO2
 ; -------------------------------------------------------
 
-<layer> 0          ; Si bulk substrate
+<layer> 0          ; Si bulk substrate (back-lapped)
 rho = 50.0         ; ohm-cm (spec target RSBLK, range 37.5-62.5)
-t   = 750.0        ; microns
+t   = 280.0        ; microns
 eps = 11.9
 
 <layer> 1          ; EPI layer
@@ -36,9 +37,9 @@ rho = 20.0         ; ohm-cm
 t   = 3.75         ; microns
 eps = 11.9
 
-<layer> 2          ; ILD0: Activ to Metal1 (640 nm)
+<layer> 2          ; ILD0: Activ to Metal1
 rho = 1e10
-t   = 0.64
+t   = 1.04
 eps = 4.1
 
 <layer> 3          ; Metal1 layer + ILD1 above (420nm metal + 540nm ILD = 960nm)
@@ -71,9 +72,14 @@ rho = 1e10
 t   = 4.80
 eps = 4.1
 
-<layer> 9          ; TopMetal2 + passivation (3000nm metal + ~1900nm passivation)
+<layer> 9          ; TopMetal2 + SiO2 above (3000nm metal + 1500nm SiO2)
 rho = 1e10
-t   = 4.90
+t   = 4.50
+eps = 4.1
+
+<layer> 10         ; Passivation (nitride), air above
+rho = 1e10
+t   = 0.40
 eps = 6.6
 
 ; -------------------------------------------------------
