@@ -28,6 +28,31 @@ _ALPHA_4 =  1.75
 _ALPHA_5 = -0.049
 
 
+@dataclass(frozen=True)
+class InductanceCoefficients:
+    """Monomial coefficients for the Mohan inductance expression
+
+        L_nH = beta * d_out^a1 * w^a2 * d_avg^a3 * n^a4 * s^a5
+
+    with every length in microns and L in nanohenries.  The defaults
+    (``MOHAN_OCTAGONAL``) are Mohan et al.'s generic octagonal fit; pass a
+    process-specific fit -- e.g. one produced by asitic_sg13g2_sweep.py -- to
+    override them for a particular PDK and layout style.
+    """
+    beta: float
+    a1:   float   # exponent of d_out
+    a2:   float   # exponent of w
+    a3:   float   # exponent of d_avg
+    a4:   float   # exponent of n
+    a5:   float   # exponent of s
+
+
+#: Mohan et al. generic octagonal coefficients (the historical default).
+MOHAN_OCTAGONAL = InductanceCoefficients(
+    beta=_BETA, a1=_ALPHA_1, a2=_ALPHA_2, a3=_ALPHA_3, a4=_ALPHA_4, a5=_ALPHA_5,
+)
+
+
 class Topology(enum.Enum):
     DIFFERENTIAL = "differential"
     SINGLE_ENDED = "single_ended"
@@ -84,6 +109,9 @@ def design_inductor(
     topology: Topology = Topology.DIFFERENTIAL,
     min_srf_hz: float = 7e9,
     max_area_m2: float = None,
+    coeffs: InductanceCoefficients = MOHAN_OCTAGONAL,
+    integer_turns: bool = True,
+    fixed_n: int = None,
 ) -> InductorDesign:
     """Maximise Q for an octagonal spiral inductor via GP.
 
@@ -94,10 +122,44 @@ def design_inductor(
         topology:     Topology.DIFFERENTIAL (default) or Topology.SINGLE_ENDED
         min_srf_hz:   minimum self-resonance frequency [Hz]
         max_area_m2:  maximum bounding-box area [m^2]; unconstrained if None (default)
+        coeffs:       monomial inductance coefficients; defaults to the Mohan
+                      octagonal fit. Pass a process-specific InductanceCoefficients
+                      (e.g. from the ASITIC sweep) to use those instead.
+        integer_turns: if True (default) return a realisable INTEGER-turn design -- the
+                      GP is solved continuously to locate n, then re-solved frozen at
+                      floor(n) and ceil(n), keeping the higher-Q result, so the design
+                      has integer turns AND hits the target L exactly (see
+                      integer_turn_resolve.md). Set False for the raw continuous
+                      optimum. Ignored when ``fixed_n`` is given.
+        fixed_n:      if given, freeze the turn count at this integer (a monomial
+                      equality ``n == fixed_n``) and let the solver re-optimise
+                      w/s/d_out so the design hits the target L with that many turns.
 
     Returns:
         InductorDesign with optimised geometry and estimated performance.
     """
+    # Integer-turn handling: locate the continuous optimum, then re-solve frozen at
+    # floor(n) and ceil(n) and keep the higher-Q design. Skipped when the caller fixes
+    # n explicitly or asks for the raw continuous optimum (integer_turns=False).
+    if fixed_n is None and integer_turns:
+        cont = design_inductor(
+            nanohenries, frequency_hz, pdk, topology=topology, min_srf_hz=min_srf_hz,
+            max_area_m2=max_area_m2, coeffs=coeffs, integer_turns=False)
+        best = None
+        for N in sorted({max(1, math.floor(cont.n)), math.ceil(cont.n)}):
+            try:
+                d = design_inductor(
+                    nanohenries, frequency_hz, pdk, topology=topology,
+                    min_srf_hz=min_srf_hz, max_area_m2=max_area_m2, coeffs=coeffs,
+                    integer_turns=False, fixed_n=N)
+            except Exception:
+                continue
+            if best is None or d.Q > best.Q:
+                best = d
+        if best is None:
+            raise RuntimeError(f"no feasible integer-turn design for {nanohenries} nH")
+        return best
+
     cs_factor = 2 if topology is Topology.DIFFERENTIAL else 1
     omega_val    = 2 * math.pi * frequency_hz
     omega_sr_val = 2 * math.pi * min_srf_hz
@@ -180,12 +242,12 @@ def design_inductor(
     # -- Intermediate GP expressions ------------------------------------------
     l = 8 * d_avg * n / (1 + 2**0.5)   # conductor length (octagon)
 
-    L = (_BETA
-         * (d_out / um_c) ** _ALPHA_1
-         * (w     / um_c) ** _ALPHA_2
-         * (d_avg / um_c) ** _ALPHA_3
-         * n              ** _ALPHA_4
-         * (s     / um_c) ** _ALPHA_5
+    L = (coeffs.beta
+         * (d_out / um_c) ** coeffs.a1
+         * (w     / um_c) ** coeffs.a2
+         * (d_avg / um_c) ** coeffs.a3
+         * n              ** coeffs.a4
+         * (s     / um_c) ** coeffs.a5
          * nH_c)
 
     R_m  = K1_c * l / w
@@ -213,11 +275,22 @@ def design_inductor(
         k_sr**2 * gamma / 2 + delta / 2 <= 1,
         w >= w_min_c,
         s >= s_min_c,
+        # Average-diameter / fit bound. The exact octagon build-up is
+        # n*w + (n-1)*s (n traces, n-1 gaps per side), so d_avg = d_out - n*w
+        # - (n-1)*s -- the SAME convention the ASITIC coefficients are fit on
+        # (built geometry). But (n-1)*s is a signomial and is rejected by a pure
+        # GP, so we keep the canonical Boyd/Hershenson n*(w+s) form here: it is
+        # tighter by one s (~0.7% of d_avg), i.e. conservative. The exact d_avg
+        # is recovered below in the post-solve d_in back-out.
         d_avg + n*s + n*w <= d_out,
     ]
     if max_area_m2 is not None:
         A_max_c = Variable("A_max", max_area_m2, "m^2", constant=True)
         constraints.append(d_out**2 <= A_max_c)
+    if fixed_n is not None:
+        # Freeze the turn count at an integer; the solver re-sizes w/s/d_out so the
+        # inductance monomial still hits L_req. Monomial equality -> stays a GP.
+        constraints.append(n == fixed_n)
 
     sol = Model(Q_min**-1, constraints).solve()
 
