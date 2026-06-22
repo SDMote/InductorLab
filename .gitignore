@@ -4,3 +4,6 @@ palace.sif
 drc_run_*
 simulation/
 __pycache__
+.vscode
+softmax_test/
+synthesis/
