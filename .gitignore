@@ -8,3 +8,4 @@ __pycache__
 softmax_test/
 synthesis/
 *.LOG
+logs/
