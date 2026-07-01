@@ -1,2 +1,0 @@
-#!/bin/bash
-apptainer exec "$HOME/Containers/palace_016.sif" palace -np $(($(nproc))) $1

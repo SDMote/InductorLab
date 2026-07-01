@@ -31,7 +31,7 @@ from pathlib import Path
 import klayout.db as db
 import numpy as np
 
-REPO = Path(__file__).resolve().parent.parent
+REPO = Path(__file__).resolve().parents[2]   # scripts/palace/<file> -> repo root
 sys.path.insert(0, str(REPO / "projects" / "inductor_lab" / "src"))
 import gds2palace as gp
 from inductor_lab.gp.spiral import (

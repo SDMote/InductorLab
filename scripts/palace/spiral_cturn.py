@@ -32,7 +32,7 @@ from gpkit import Model, Variable
 from inductor_lab.gp.spiral import InductanceCoefficients, Topology
 from inductor_lab.pdk.sg13g2 import BACKLAPPING, SG13G2
 
-REPO = Path(__file__).resolve().parent.parent
+REPO = Path(__file__).resolve().parents[2]   # scripts/palace/<file> -> repo root
 _MU_0, _EPS_0 = 4 * math.pi * 1e-7, 8.854187e-12
 _K_E = 1 / (1 + 2 ** 0.5)                       # octagon transition-gap factor
 FREQ = 2.5e9
