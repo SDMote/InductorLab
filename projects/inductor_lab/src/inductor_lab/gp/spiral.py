@@ -112,6 +112,9 @@ def design_inductor(
     coeffs: InductanceCoefficients = MOHAN_OCTAGONAL,
     integer_turns: bool = True,
     fixed_n: int = None,
+    s_max: float = None,
+    w_max: float = None,
+    davg_max: float = None,
 ) -> InductorDesign:
     """Maximise Q for an octagonal spiral inductor via GP.
 
@@ -129,7 +132,7 @@ def design_inductor(
                       GP is solved continuously to locate n, then re-solved frozen at
                       floor(n) and ceil(n), keeping the higher-Q result, so the design
                       has integer turns AND hits the target L exactly (see
-                      integer_turn_resolve.md). Set False for the raw continuous
+                      PROJECT_OVERVIEW.md (sec. 2)). Set False for the raw continuous
                       optimum. Ignored when ``fixed_n`` is given.
         fixed_n:      if given, freeze the turn count at this integer (a monomial
                       equality ``n == fixed_n``) and let the solver re-optimise
@@ -287,6 +290,16 @@ def design_inductor(
     if max_area_m2 is not None:
         A_max_c = Variable("A_max", max_area_m2, "m^2", constant=True)
         constraints.append(d_out**2 <= A_max_c)
+    # Optional UPPER bounds to keep the design inside a fit's sampled region (the
+    # monomial extrapolates otherwise -- e.g. the rapidfem LHS only sampled
+    # s in [2,7] um, but Q rises with s so the optimizer walks s past that).
+    # Monomial <= constant constraints, GP-legal.
+    if s_max is not None:
+        constraints.append(s <= Variable("s_max", s_max, "m", constant=True))
+    if w_max is not None:
+        constraints.append(w <= Variable("w_max", w_max, "m", constant=True))
+    if davg_max is not None:
+        constraints.append(d_avg <= Variable("davg_max", davg_max, "m", constant=True))
     if fixed_n is not None:
         # Freeze the turn count at an integer; the solver re-sizes w/s/d_out so the
         # inductance monomial still hits L_req. Monomial equality -> stays a GP.
