@@ -465,6 +465,9 @@ def main():
     ap.add_argument("--srf", type=float, default=7.0, help="SRF floor [GHz]; set = --freq to release it")
     ap.add_argument("--w-max", type=float, default=28.0, help="max trace width [um] (L-fit box cap)")
     ap.add_argument("--s-max", type=float, default=18.0, help="max spacing [um] (L-fit box cap)")
+    ap.add_argument("--rho-max", type=float, default=0.35,
+                    help="fill-factor ceiling (winding width / d_avg); keeps designs where the "
+                         "L monomial is accurate (~5%%). Raise toward 0.6 for more Q at some L error.")
     ap.add_argument("--out", default="sweep", help="output dir under scripts/.out/")
     ap.add_argument("--geom-only", action="store_true", help="write only *_forEM.gds (no Palace mesh)")
     # -- fixture (default: ground frame; pick ONE of the below) --
@@ -499,7 +502,7 @@ def main():
     rows, skipped = [], []
     for L in range(a.min, a.max + 1):
         d = sct.best_int(L, _design=sct.design, min_srf_hz=a.srf * 1e9,
-                         w_max=a.w_max * 1e-6, s_max=a.s_max * 1e-6)
+                         w_max=a.w_max * 1e-6, s_max=a.s_max * 1e-6, rho_max=a.rho_max)
         if d is None:
             skipped.append(f"{L}(infeasible)")
             print(f"  L={L:2d}  INFEASIBLE (SRF>={a.srf} GHz within w<={a.w_max}, s<={a.s_max})")
