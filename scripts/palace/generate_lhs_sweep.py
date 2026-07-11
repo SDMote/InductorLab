@@ -33,7 +33,6 @@ NOT simulated here -- run on CLEPS with cleps/run_lhs_array.sh.
 import argparse
 import csv
 import math
-import multiprocessing as mp
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -50,13 +49,12 @@ _K_E = sct._K_E
 RT2 = math.sqrt(2)
 
 # sampling ranges (um) -- absolute, so n and d_avg are independent
-N_MIN, N_MAX = 2, 8
+N_MIN, N_MAX = 2, 9
 W_MIN, W_MAX = 2.0, 28.0
 S_MIN, S_MAX = 2.0, 7.0
 DAVG_MIN, DAVG_MAX = 60.0, 600.0
 DOUT_CAP = 800.0
 BAND_STOP = 15.0e9          # widen 10 -> 15 GHz to catch more series-branch (C_BR) resonances
-PER_MODEL_TIMEOUT = 480     # s: kill a model whose gmsh meshing hangs (legit builds ~1-4 min)
 
 
 # ---- forward model: replicate spiral_cturn.design()'s closed form (no GP solve) ----
@@ -127,41 +125,8 @@ def sample(n_target, seed, s_min=S_MIN, s_max=S_MAX, pool_factor=40):
     return keep
 
 
-def _build_worker(sol, out_dir, q, geom_only=False):
-    try:
-        ind_name, sim_path = gsp.build_one(sol, out_dir, geom_only=geom_only)
-        q.put(("ok", ind_name, sim_path))
-    except Exception as e:
-        q.put(("error", str(e)[:55], ""))
-
-
-def build_with_timeout(sol, out_dir, timeout, geom_only=False):
-    """Build one model in a SUBPROCESS so a gmsh HANG (a C-level infinite loop, which no
-    try/except can catch) can be killed. Returns (ind_name, sim_path) on success, else
-    (None, reason). The half-built dir of a killed model has no config.json, so it is
-    naturally ignored by the array and by manifest_from_dirs.py."""
-    q = mp.Queue()
-    proc = mp.Process(target=_build_worker, args=(sol, out_dir, q, geom_only))
-    proc.start()
-    proc.join(timeout)
-    if proc.is_alive():
-        proc.terminate(); proc.join()
-        return None, "TIMEOUT (gmsh hang)"
-    try:
-        status, a, b = q.get_nowait()
-    except Exception:
-        return None, "no result (crashed)"
-    return (a, b) if status == "ok" else (None, a)
-
-
-def _write_manifest(out_dir, rows):
-    # Write to a temp file then atomically rename, so a SLURM kill mid-write can never leave
-    # a half-written manifest (the array may read it the instant generation ends, afterany).
-    tmp = out_dir / "manifest.csv.tmp"
-    with open(tmp, "w", newline="") as f:
-        wtr = csv.DictWriter(f, fieldnames=list(rows[0].keys()), lineterminator="\n")
-        wtr.writeheader(); wtr.writerows(rows)
-    tmp.replace(out_dir / "manifest.csv")
+# build_with_timeout / _write_manifest / PER_MODEL_TIMEOUT now live in generate_sweep_palace
+# (gsp) alongside build_one -- referenced as gsp.* below.
 
 
 def main():
@@ -175,6 +140,10 @@ def main():
                     help="write only the *_forEM.gds per coil (skip the Palace mesh build) "
                          "-- for the rapidfem LHS, which meshes itself. Fast (no gmsh).")
     ap.add_argument("--dry-run", action="store_true", help="print sampling stats, build nothing")
+    ap.add_argument("--diffpec", action="store_true",
+                    help="build with the DIFFERENTIAL 1-port + PEC-ground backside fixture (the "
+                         "validated true-backside-ground setup) instead of the default ground frame "
+                         "-- for refitting the L coefficients to the correct fixture.")
     a = ap.parse_args()
 
     pts = sample(a.n, a.seed, s_min=a.s_min, s_max=a.s_max)
@@ -193,7 +162,13 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     gsp.FSWEEP = True
     gsp.FSWEEP_STOP = BAND_STOP
-    print(f"band 0.1-{BAND_STOP/1e9:g} GHz, gamma={GAMMA}  ->  {OUT.relative_to(REPO)}\n")
+    if a.diffpec:
+        gsp.BACKSIDE_NOFRAME = True          # backside plane
+        gsp.DIFFERENTIAL_DRIVE = True        # single differential 1-port, no plug
+        gsp.BACKSIDE_PEC_GROUND = True       # plane is a true PEC ground
+        gsp.GROUNDED_BACKSIDE = False
+    print(f"band 0.1-{BAND_STOP/1e9:g} GHz, gamma={GAMMA}, fixture="
+          f"{'diffpec (PEC-ground differential)' if a.diffpec else 'frame'}  ->  {OUT.relative_to(REPO)}\n")
 
     rows = []
     skipped = 0
@@ -203,7 +178,7 @@ def main():
         # Build in a subprocess with a hard timeout: a single un-meshable geometry (gmsh
         # "overlapping facets" exception) OR a gmsh HANG (uncatchable C-level infinite loop)
         # is killed and skipped instead of crashing or freezing the whole sweep.
-        ind_name, info = build_with_timeout(sol, OUT, PER_MODEL_TIMEOUT, geom_only=a.geom_only)
+        ind_name, info = gsp.build_with_timeout(sol, OUT, gsp.PER_MODEL_TIMEOUT, geom_only=a.geom_only)
         if ind_name is None:
             skipped += 1
             print(f"  SKIP N={n} w={w:5.1f} s={s:4.1f} d_out={d_out:5.0f}um  ({info})")
@@ -219,7 +194,7 @@ def main():
                          model_dir=model_dir))
         # Incremental write: rewrite the manifest after EVERY model so a SLURM TIMEOUT or
         # crash leaves a complete, usable manifest of everything built so far (no salvage run).
-        _write_manifest(OUT, rows)
+        gsp._write_manifest(OUT, rows)
         print(f"  [{idx:3d}] N={n} w={w:5.1f} s={s:4.1f} d_out={d_out:5.0f}um  "
               f"L={p['L']*1e9:5.2f}nH Cs={p['C_s']*1e15:5.1f}fF SRF={p['fsr']/1e9:4.2f}GHz -> {ind_name}")
 
