@@ -58,9 +58,8 @@ class GF180MCUParams:
     t_ox: float      # total oxide thickness, Si surface to TM bottom [m]
 
     # ── Substrate ─────────────────────────────────────────────────────────────
-    # eps_r_sub: standard silicon value, not stated in GF180MCU docs
-    # sigma_sub: not found in available documentation
-    # t_sub:     not found in available documentation
+    # NONE of these are stated in the GF180MCU open docs. eps_r_sub is the standard
+    # silicon value; sigma_sub and t_sub are ASSUMPTIONS (see the instantiation below).
     eps_r_sub: float  # relative permittivity (dimensionless)
     sigma_sub: float  # conductivity [S/m]
     t_sub: float      # thickness [m]
@@ -111,7 +110,14 @@ GF180MCU = GF180MCUParams(
     eps_r_ox=4.0,
     t_ox=3.26e-6,   # ILD(0.86) + 4 × 0.60 µm  (cross-section 38)
 
-    eps_r_sub=11.9,  # standard silicon; not stated in GF180MCU docs
-    sigma_sub=TODO,  # not found in available documentation
-    t_sub=TODO,      # not found in available documentation
+    eps_r_sub=11.9,   # standard silicon; not stated in GF180MCU docs
+    # ASSUMPTIONS -- NOT in any GF180MCU open doc (confirmed absent from the PDK docs,
+    # SPICE/LVS decks, and the SSCS chipathon resources). Confirm with GF/wafer.space
+    # before trusting L/SRF. Standard bulk mixed-signal CMOS p-type start material is
+    # ~8-15 ohm.cm; 10 ohm.cm -> sigma = 1/(10e-2 ohm.m) = 10 S/m. This puts the substrate
+    # dielectric-relaxation corner f_tau = sigma/(2*pi*eps_r*eps_0) ~ 15 GHz (vs SG13G2's
+    # 3 GHz), so at 2.4-5 GHz designs sit BELOW the crossover -> use the frequency-dependent
+    # Cp (fringing.Cp_yue / fit_cp_at_freq), NOT the high-frequency series-limit fit.
+    sigma_sub=10.0,   # ASSUMED ~10 ohm.cm bulk p-substrate (see note above)
+    t_sub=725e-6,     # ASSUMED un-thinned 200 mm wafer; set to the back-lapped value if thinned
 )

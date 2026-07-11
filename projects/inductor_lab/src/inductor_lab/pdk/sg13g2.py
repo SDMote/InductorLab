@@ -51,8 +51,6 @@ class SG13G2Params:
 
     # ── Oxide dielectric (BEOL stack) ────────────────────────────────────────
     # Process spec §1.1: ε_R = 4.1 ± 0.1 for all BEOL oxide layers
-    # t_ox = sum of all isolator layers from substrate surface to TM2:
-    #   TILD0 (640) + TILD1–4 (4 × 540) + TILDTM1 (850) + TILTM2 (2800) = 6450 nm
     eps_r_ox: float  # relative permittivity (dimensionless)
     t_ox: float      # total oxide thickness, substrate surface to TM2 [m]
 
@@ -118,7 +116,7 @@ SG13G2 = SG13G2Params(
         ),
     ),
     eps_r_ox=4.1,
-    t_ox=6.45e-6,   # 640 + 4×540 + 850 + 2800 nm
+    t_ox=11.2303e-6,
     eps_r_sub=11.9,
     sigma_sub=2.0,  # 1 / (50e-2 Ω·m)
     t_sub=BACKLAPPING[200],
