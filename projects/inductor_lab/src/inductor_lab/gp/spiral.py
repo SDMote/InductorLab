@@ -16,6 +16,8 @@ from dataclasses import dataclass
 
 from gpkit import Model, Variable
 
+from .fringing import ShuntCapCoefficients, fit_shunt_cap
+
 _MU_0  = 4 * math.pi * 1e-7   # H/m
 _EPS_0 = 8.854187e-12          # F/m
 
@@ -110,6 +112,7 @@ def design_inductor(
     min_srf_hz: float = 7e9,
     max_area_m2: float = None,
     coeffs: InductanceCoefficients = MOHAN_OCTAGONAL,
+    shunt_cap: ShuntCapCoefficients = None,
     integer_turns: bool = True,
     fixed_n: int = None,
     s_max: float = None,
@@ -141,20 +144,26 @@ def design_inductor(
     Returns:
         InductorDesign with optimised geometry and estimated performance.
     """
+    # Bundled Hasegawa fringing shunt-cap fit (see fringing.py). Fit once from the
+    # PDK here and forward it through the recursion so it isn't re-fit per solve.
+    if shunt_cap is None:
+        shunt_cap = fit_shunt_cap(pdk)
+
     # Integer-turn handling: locate the continuous optimum, then re-solve frozen at
     # floor(n) and ceil(n) and keep the higher-Q design. Skipped when the caller fixes
     # n explicitly or asks for the raw continuous optimum (integer_turns=False).
     if fixed_n is None and integer_turns:
         cont = design_inductor(
             nanohenries, frequency_hz, pdk, topology=topology, min_srf_hz=min_srf_hz,
-            max_area_m2=max_area_m2, coeffs=coeffs, integer_turns=False)
+            max_area_m2=max_area_m2, coeffs=coeffs, shunt_cap=shunt_cap,
+            integer_turns=False)
         best = None
         for N in sorted({max(1, math.floor(cont.n)), math.ceil(cont.n)}):
             try:
                 d = design_inductor(
                     nanohenries, frequency_hz, pdk, topology=topology,
                     min_srf_hz=min_srf_hz, max_area_m2=max_area_m2, coeffs=coeffs,
-                    integer_turns=False, fixed_n=N)
+                    shunt_cap=shunt_cap, integer_turns=False, fixed_n=N)
             except Exception:
                 continue
             if best is None or d.Q > best.Q:
@@ -199,7 +208,8 @@ def design_inductor(
     k5 = 2 * t_sub_val / sigma_sub     # ohm*m^2  substrate resistance x area
 
     k6 = _k6(k2, k4, k5, omega_val)   # ohm*m^2
-    k7 = _k7(k2, k4, k5, omega_val)   # F/m^2
+    # k7 (parallel-plate shunt cap coeff) retired: C_p now comes from the bundled
+    # Hasegawa fringing fit (see C_p below and fringing.py). _k7 kept for reference.
 
     # k8: via array resistance x area [ohm*m^2]
     skin_v = math.sqrt(2 / (omega_val * _MU_0 * sigma_v))
@@ -228,10 +238,13 @@ def design_inductor(
     K4_c = Variable("K4", k4, "F/m^2",   constant=True)
     K5_c = Variable("K5", k5, "ohm*m^2", constant=True)
     K6_c = Variable("K6", k6, "ohm*m^2", constant=True)
-    K7_c = Variable("K7", k7, "F/m^2",   constant=True)
 
     w_min_c = Variable("w_min", metal.w_min, "m", constant=True)
     s_min_c = Variable("s_min", metal.s_min, "m", constant=True)
+
+    # Bundled fringing shunt-cap fit:  C'_ser[fF/um] = Acap * (W_bun[um])^bcap
+    Acap_c = Variable("Acap", shunt_cap.A, "-", constant=True)
+    fF_c   = Variable("fF",   1e-15,       "F", constant=True)
 
     # -- Design variables -----------------------------------------------------
     d_out = Variable("d_out", "m",   positive=True)
@@ -239,6 +252,7 @@ def design_inductor(
     w     = Variable("w",     "m",   positive=True)
     s     = Variable("s",     "m",   positive=True)
     n     = Variable("n",     "-",   positive=True)
+    W_bun = Variable("W_bun", "m",   positive=True)   # bundle width n*w+(n-1)*s
     Q_min = Variable("Q_min", "-",   positive=True)
     R_s   = Variable("R_s",   "ohm", positive=True)
 
@@ -261,7 +275,15 @@ def design_inductor(
     R_v  = k8 * n * (w / m_c)**(-2) * ohm_c   # notebook unit-normalisation pattern
 
     R_p  = K6_c / (l * w)
-    C_p  = K7_c * l * w
+
+    # Shunt capacitance from the bundled Hasegawa fringing model (fringing.py):
+    # C_p = C'_ser(W_bun) * l_bundle, with C'_ser[fF/um] = Acap*(W_bun[um])^bcap
+    # and l_bundle = l/n = 3.3137*d_avg (ONE loop perimeter, not the n-turn wire).
+    # Replaces the old parallel-plate C_p = K7_c*l*w, which ignored fringing and
+    # under-predicted the substrate coupling several-fold (see PROJECT_OVERVIEW
+    # sec 7.3 / memory srf-root-cause-cp).
+    l_bundle = l / n
+    C_p = Acap_c * (W_bun / um_c)**shunt_cap.b * (l_bundle / um_c) * fF_c
 
     C_tot = C_p + cs_factor * C_s
     rho   = omega_c * L / R_s
@@ -286,6 +308,12 @@ def design_inductor(
         # tighter by one s (~0.7% of d_avg), i.e. conservative. The exact d_avg
         # is recovered below in the post-solve d_in back-out.
         d_avg + n*s + n*w <= d_out,
+        # Bundle width for the fringing shunt cap. Exact is n*w + (n-1)*s, but the
+        # -s is signomial; using n*(w+s) over-estimates W_bun by one gap. Since
+        # C_p rises with W_bun (bcap > 0) and nothing rewards a larger C_p, the
+        # solver drives W_bun to this lower bound -> tight, and the +s over-count
+        # is conservative (slightly higher C_p / lower SRF). Posynomial <= 1.
+        n*w/W_bun + n*s/W_bun <= 1,
     ]
     if max_area_m2 is not None:
         A_max_c = Variable("A_max", max_area_m2, "m^2", constant=True)
