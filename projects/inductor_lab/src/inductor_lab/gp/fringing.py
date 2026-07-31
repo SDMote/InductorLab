@@ -686,3 +686,82 @@ def fit_rsi_derived(pdk, n_lo: float = 2.0, n_hi: float = 9.0,
     return RsiCoefficients(Rsi_A=a, Rsi_pd=pd, Rsi_pa=pa,
                            d_out_lo_um=float(d_out_a.min() * 1e6),
                            d_out_hi_um=float(d_out_a.max() * 1e6), max_err=err)
+
+
+# -- Paper-exact substrate self-capacitance/resistance ------------------------------------
+# Jaramillo & Maksimovic, "A Tool for On-Chip Inductor Design Using Geometric Programming",
+# CrystalFreeIoT'26, Sec. 3.5/3.6:
+#   C_si = beta_sub*a_self + eps_si*eps0/t_sub*A_metal                          (eq. 19)
+#   G_si = (eps_si*eps0/t_sub)*A_metal/tau_si + beta_sub*a_self/tau_self        (eq. 20)
+# a_self = sqrt(A_foot/pi), A_foot = 8*(sqrt2-1)*(d_out/2)^2 -- the exact octagon footprint
+# area (paper, just above eq. 19). tau_si = eps_si*eps0/sigma_sub is a pure PDK/stackup
+# property (not fitted -- reproduces the paper's stated 52.7 ps on SG13G2); BETA_SUB_PAPER and
+# TAU_SELF_PAPER are the paper's own two empirically-fit constants (3.78e-10 F/m, 68.2 ps).
+#
+# Kept deliberately separate from c_si_derived/g_si_derived/BETA_CSI above, which use a
+# DIFFERENT (later, EM-refit) a_self coefficient and beta anchored to a different research
+# session (scripts/palace/close_csi_rsi.py) -- do not merge the two.
+A_SELF_COEF_PAPER = math.sqrt(2.0 * (math.sqrt(2.0) - 1.0) / math.pi)   # a_self = COEF * d_out
+BETA_SUB_PAPER = 3.78e-10    # F/m, paper eq. 19
+TAU_SELF_PAPER = 68.2e-12    # s,   paper eq. 20
+
+
+def c_si_paper(pdk, d_out: float, l: float, w: float, beta: float = BETA_SUB_PAPER) -> float:
+    """Exact closed-form C_si (paper eq. 19): rim self-cap + under-metal parallel-plate term."""
+    a_self = A_SELF_COEF_PAPER * d_out
+    Cpp = pdk.eps_r_sub * _EPS_0 * l * w / pdk.t_sub
+    return beta * a_self + Cpp
+
+
+def g_si_paper(pdk, d_out: float, l: float, w: float,
+              beta: float = BETA_SUB_PAPER, tau_self: float = TAU_SELF_PAPER) -> float:
+    """Substrate conductance (paper eq. 20): G_si = Cpp/tau_si + Cself/tau_self."""
+    a_self = A_SELF_COEF_PAPER * d_out
+    Cpp = pdk.eps_r_sub * _EPS_0 * l * w / pdk.t_sub
+    Cself = beta * a_self
+    tau_si = pdk.eps_r_sub * _EPS_0 / pdk.sigma_sub
+    return Cpp / tau_si + Cself / tau_self
+
+
+@dataclass(frozen=True)
+class RsiPaperCoefficients:
+    """GP-legal monomial legalization of R_si=1/g_si_paper (a 2-term posynomial reciprocal, not
+    itself GP-legal -- same non-representable-ratio issue as the Yue C_p/R_p rollup in eq. 27/28)
+    as a 2D log-log fit in (d_out, A_metal=l*w)."""
+    Rsi_A: float; Rsi_pd: float; Rsi_pa: float
+    max_err: float
+
+
+def fit_rsi_paper(pdk, n_lo: float = 2.0, n_hi: float = 9.0,
+                  w_lo_um: float = 2.0, w_hi_um: float = 28.0,
+                  s_lo_um: float = 2.0, s_hi_um: float = 18.0,
+                  davg_lo_um: float = 80.0, davg_hi_um: float = 450.0,
+                  npts: int = 8, beta: float = BETA_SUB_PAPER,
+                  tau_self: float = TAU_SELF_PAPER) -> RsiPaperCoefficients:
+    """Legalize R_si=1/g_si_paper into a single GP-legal monomial in (d_out, A_metal=l*w),
+    sampled over a realistic (n,w,s,d_avg) population (same method as fit_rsi_derived)."""
+    import numpy as np
+
+    Nn = np.linspace(n_lo, n_hi, npts)
+    W = np.linspace(w_lo_um, w_hi_um, npts) * 1e-6
+    S = np.linspace(s_lo_um, s_hi_um, npts) * 1e-6
+    Davg = np.linspace(davg_lo_um, davg_hi_um, npts) * 1e-6
+    d_out_l, A_l, R_l = [], [], []
+    for nv in Nn:
+        for wv in W:
+            for sv in S:
+                for dav in Davg:
+                    d_out = dav + nv * (wv + sv)
+                    l = 8.0 * dav * nv / (1.0 + 2.0 ** 0.5)
+                    g = g_si_paper(pdk, d_out, l, wv, beta, tau_self)
+                    d_out_l.append(d_out)
+                    A_l.append(l * wv)
+                    R_l.append(1.0 / g)
+    d_out_a = np.array(d_out_l); A_a = np.array(A_l); R_a = np.array(R_l)
+    X = np.column_stack([np.ones_like(d_out_a), np.log(d_out_a * 1e6), np.log(A_a * 1e12)])
+    coef, *_ = np.linalg.lstsq(X, np.log(R_a), rcond=None)
+    a = math.exp(coef[0]); pd = float(coef[1]); pa = float(coef[2])
+    Rfit = a * (d_out_a * 1e6) ** pd * (A_a * 1e12) ** pa
+    err = float(np.max(np.abs(Rfit - R_a) / R_a))
+
+    return RsiPaperCoefficients(Rsi_A=a, Rsi_pd=pd, Rsi_pa=pa, max_err=err)

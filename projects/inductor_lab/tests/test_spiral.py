@@ -4,7 +4,7 @@ for both the differential and single-ended topologies.
 
 design_inductor defaults to integer_turns=True, so the result has a realisable
 INTEGER turn count and still predicts the target L exactly (see
-integer_turn_resolve.md).
+PROJECT_OVERVIEW.md (sec. 2)).
 Run with:  python tests/test_spiral.py
 """
 

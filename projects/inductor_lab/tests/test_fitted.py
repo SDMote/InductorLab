@@ -20,8 +20,9 @@ from inductor_lab.pdk.sg13g2 import BACKLAPPING, SG13G2
 
 pdk = replace(SG13G2, t_sub=BACKLAPPING[200])
 
-# SG13G2 symmetric-octagon (sympoly) AC fit at 2.4 GHz from asitic_sym_sweep.py.
-# Source: ASITIC/coefficients_sym_sg13g2_2.4ghz.py  (RMSE 5.37%, N=12581)
+# SG13G2 symmetric-octagon (sympoly) AC fit at 2.4 GHz (historical ASITIC sympoly fit,
+# RMSE 5.37%, N=12581; the coeff file was removed -- values kept inline here as a regression
+# fixture). The production GP now uses ASITIC/coefficients_sym_sg13g2.py (Mohan + backside BETA).
 # (built-geometry fit; d_avg = d_out - n*w - (n-1)*s, the exact octagon convention)
 SG13G2_SYMPOLY = InductanceCoefficients(
     beta=8.613900e-04,
