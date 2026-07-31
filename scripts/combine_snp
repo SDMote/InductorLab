@@ -1,5 +1,0 @@
-#!/bin/bash
-script_root=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-repo_root=$(dirname -- "${script_root}")
-
-python "${repo_root}/lib/gds2palace/scripts/combine_extend_snp.py"

@@ -1,7 +1,0 @@
-#!/bin/bash
-# CLEPS: use host MPI via srun so SLURM controls the process count.
-# The container is expected at $SLURM_SUBMIT_DIR/containers/palace.sif
-# (i.e. a containers/ directory at the repo root).
-srun --mpi=pmi2 apptainer exec \
-    "${SLURM_SUBMIT_DIR}/containers/palace.sif" \
-    /opt/palace/bin/palace-x86_64.bin $1
