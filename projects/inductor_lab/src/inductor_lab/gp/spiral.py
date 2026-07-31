@@ -360,7 +360,18 @@ def design_inductor(
             Q_min * (cs_factor*R_p + (rho**2 + 1)*R_s) / (rho * cs_factor*R_p)
                 + delta + gamma <= 1,
             delta / 2 + gamma / 2 <= 1,
-            k_sr**2 * gamma / 2 + delta / 2 <= 1,
+            # SRF floor (paper eq. 31, via ref [3]/Hershenson et al.'s own constraint). The
+            # post-solve "actual" SRF (below) solves omega_sr_actual^2*L*Ctot + Rs^2*Ctot/L = 2
+            # for omega_sr_actual -- that fixed "2" is what a floor constraint must reproduce at
+            # omega_sr=min_srf_hz to make min_srf_hz actually achievable. With gamma=
+            # omega^2*L*Ctot/cs_factor and delta=Rs^2*Ctot/cs_factor/L, substituting
+            # omega->omega_sr,min gives omega_sr,min^2*L*Ctot + Rs^2*Ctot/L = cs_factor*
+            # (k_sr**2*gamma + delta), so the constraint must read k_sr**2*gamma + delta <=
+            # 2/cs_factor -- NOT a flat 1 (that only happens to be right for cs_factor=2). A
+            # flat "k_sr**2*gamma/2 + delta/2 <= 1" (extra /2 beyond this) under-delivers SRF by
+            # sqrt(2) for the differential topology specifically -- confirmed empirically (GF180
+            # 10nH: requested 7 GHz, achieved 4.945 GHz = 7/sqrt(2)).
+            k_sr**2 * gamma + delta <= 2 / cs_factor,
             w >= w_min_c,
             s >= s_min_c,
             # Average-diameter / fit bound. The exact octagon build-up is
