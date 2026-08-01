@@ -9,14 +9,12 @@ description = "Geometric-programming-based inductor design and optimization"
 requires-python = ">=3.10"
 dependencies = [
     "numpy",
-    "sympy",
     "gpkit",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest",
-    "jupyter",
 ]
 
 [tool.hatch.build.targets.wheel]
