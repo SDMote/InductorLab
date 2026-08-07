@@ -19,3 +19,22 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/inductor_lab"]
+
+[tool.basedpyright]
+include = ["src"]
+
+# klayout's `pya` compat package ships no type stubs at all (see
+# src/inductor_lab/klayout/compat.py), and even the stubbed `klayout.db` API
+# leaves PCellDeclarationHelper.param()/pya's DTrans-family constructors
+# partially typed. These rules would fire on any code calling that API
+# correctly, so they're relaxed only for the klayout/ subpackage.
+[[tool.basedpyright.executionEnvironments]]
+root = "src/inductor_lab/klayout"
+reportUnusedCallResult = false
+reportAny = false
+reportImplicitOverride = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+reportUnknownParameterType = false
+reportUnknownLambdaType = false
