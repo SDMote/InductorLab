@@ -8,11 +8,20 @@ pgs=True, InductanceTargetMaxQ overrides R_p/C_p directly and never touches
 the substrate branch. The coil-to-underpass via/oxide gap (top_vias[0])
 is NOT given in the paper either -- 0.85um was calibrated by sweeping
 InductanceTargetMaxQ.t_ox_tm1tm2 against Table 1's L1/L2 (n, w, d_out).
+
+KNOWN LIMITATION: t_ox here is Table 1's "tox,M5-poly" (5.2um), the
+PGS-specific spiral-to-polysilicon gap (paper Sec 3.2.1) -- correct for
+pgs=True, where it's the only tox InductanceTargetMaxQ uses. The paper's
+*general* spiral-to-substrate tox (eq. 4, needed by the pgs=False branch's
+Cox/Rp/Cp) is a separate, physically larger distance that this paper never
+states, and this PDK has no field for it -- pgs=False results (e.g. the
+"without PGS" curve in Fig. 6) are not trustworthy against published
+numbers until that value is found or estimated.
 """
 
 from rapid_coil_synthesis.pdk.base import MetalLayer, ProcessParams, ViaLayer
 
-_T_OX = 5.2e-6           # oxide thickness, substrate to top metal [m]
+_T_OX = 5.2e-6           # tox,M5-poly (PGS-specific); see KNOWN LIMITATION above [m]
 _T_OX_TM1TM2 = 0.85e-6   # coil-to-underpass oxide gap [m] -- calibrated, see above
 _T_M = 0.9e-6            # top metal thickness [m]
 _SIGMA_M = 3e5 * 100     # 3e5 (ohm*cm)^-1 -> S/m

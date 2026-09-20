@@ -69,3 +69,40 @@ print("Published (Table 1):")
 for name, spec in TABLE_1.items():
     print(row_fmt.format(name, f"{spec['n']:.3f}", f"{spec['w']:.3f}", f"{spec['s']:.3f}",
                           f"{spec['d_out']:.2f}", f"{spec['Ls']:.3f}", "", ""))
+
+import matplotlib.pyplot as plt
+
+L_SWEEP = np.linspace(1, 20, 37)
+
+def sweep_q_vs_l(freq_hz, srf_min_hz, pgs):
+    t = InductanceTargetMaxQ(HERSHENSON_PAPER, ind_nh=1, freq_hz=freq_hz,
+                              srf_min_hz=srf_min_hz, pgs=pgs, single_ended=True)
+    t.model.substitutions[t.L_req] = ("sweep", L_SWEEP)
+    sol = t.model.solve(verbosity=0, skipsweepfailures=True)
+    return sol["sweepvariables"][t.L_req], sol["variables"][t.Q_min]
+
+L_constrained, Q_constrained = sweep_q_vs_l(2.5e9, 7e9, True)
+L_unconstrained, Q_unconstrained = sweep_q_vs_l(2.5e9, 0, True)
+
+fig5, ax5 = plt.subplots()
+ax5.plot(L_unconstrained, Q_unconstrained, "g--", label="$\\omega_{res}$ unconstrained")
+ax5.plot(L_constrained, Q_constrained, "r-", label="$\\omega_{res} \\geq$ 7GHz")
+ax5.set_xlabel("Inductance in nH")
+ax5.set_ylabel("Quality factor")
+ax5.set_title("Fig. 5 reproduction: max $Q_L$ at 2.5GHz")
+ax5.legend()
+ax5.grid(True)
+
+L_pgs, Q_pgs = sweep_q_vs_l(1.5e9, 5e9, True)
+L_nopgs, Q_nopgs = sweep_q_vs_l(1.5e9, 5e9, False)
+
+fig6, ax6 = plt.subplots()
+ax6.plot(L_pgs, Q_pgs, "r-", label="with PGS")
+ax6.plot(L_nopgs, Q_nopgs, "g--", label="without PGS")
+ax6.set_xlabel("Inductance in nH")
+ax6.set_ylabel("Quality factor")
+ax6.set_title("Fig. 6 reproduction: max $Q_L$ at 1.5GHz")
+ax6.legend()
+ax6.grid(True)
+
+plt.show()
