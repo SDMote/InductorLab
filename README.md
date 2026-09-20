@@ -1,18 +1,23 @@
-Install necessary libraries
-```bash
-pip install -r requirements.txt
-```
+# Open Source On-Chip Inductor Design
+**NOTE: THIS IS A WORK IN PROCESS, NOT INTENDED FOR REAL DESIGN (YET)** 
 
-Install palace as an Apptainer (might take up to an hour)
-```bash
-apptainer build palace.sif ./lib/palace/singularity/singularity.def
-```
+This repository contains code for an Open Source tool capable of inductor geometry
+synthesis. It is heavily based on the work by Hershenson et al. ([doi.org/10.1109/DAC.1999.782241](https://doi.org/10.1109/DAC.1999.782241)) with some modifications
+as described in [doi.org/10.1109/DAC.1999.782241](https://doi.org/10.1109/DAC.1999.782241).
 
-Install IHP-SG13G2 libraries for Klayout
+The code in this repository is in process of being cleaned up and refactored, so
+API changes are expected. Please open an issue if you have any questions.
+
+## Installation
+You can install this repository as a python package using the following command:
 ```bash
-mkdir -p  ~/.klayout/tech
-ln -s ./lib/ihp_open_pdk/ihp-sg13g2/libs.tech/klayout/tech ~/.klayout/tech/ihp-sg13g2
-ln -s ~/.klayout/tech/ihp-sg13g2/sg13g2.lyp ~/.klayout/tech/
-mkdir -p  ~/.klayout/python
-ln -s ./lib/ihp_open_pdk/ihp-sg13g2/libs.tech/klayout/python/* ~/.klayout/python/
+pip install -e ./projects/inductor_lab
 ```
+Usage examples can be found in the `projects/inductor_lab/tests` directory. Clearer
+and more thorough examples should be avaialable in the future.
+
+## Adding new PDKs
+You can find the PDK definitions inside the 
+`projects/inductor_lab/src/inductor_lab/pdk` directory. If you need a to use
+a different process, simply create a new class following the same structure as in
+`sg13g2.py` and `gf180mcu.py`. In the future an XML parser should be developed.
