@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "rapid-coil-synthesis"
+version = "0.0.1"
+description = "Automatic Inductor Coil Sizing"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "gpkit",
+    "scipy",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rapid_coil_synthesis"]
+
+[tool.basedpyright]
+include = ["src"]
