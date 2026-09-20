@@ -14,7 +14,7 @@ from rapid_coil_synthesis.pdk import ProcessParams
 GP Problem class
 """
 class InductanceTargetMaxQ:
-  def __init__(self, pdk:ProcessParams, ind_nh:float, freq_hz:float, srf_min_hz:float=0, shape:str="square", pgs:bool=False):
+  def __init__(self, pdk:ProcessParams, ind_nh:float, freq_hz:float, srf_min_hz:float=0, shape:str="square", pgs:bool=False, max_A:float=np.inf, single_ended:bool=False):
     if shape not in m.SHAPES:
       raise ValueError(f"Shape must be one of {list(m.SHAPES)}")
 
@@ -24,6 +24,8 @@ class InductanceTargetMaxQ:
     self.srf_min_hz: float = srf_min_hz
     self.shape: m.ShapeParams = m.SHAPES[shape]
     self.pgs = pgs
+    self.max_A = max_A
+    self.single_ended = single_ended
 
     self.create_variables()
     self.create_monomials()
@@ -44,6 +46,7 @@ class InductanceTargetMaxQ:
     self.omega = gp.Variable("\\omega", 2*np.pi*self.freq_hz, "rad/s", "Operating angular frequency", constant=True)
     self.L_req = gp.Variable("L_{req}", self.ind_nh, "nH", "Required inductance in nano Henries", constant=True)
     self.omega_sr_min = gp.Variable("\\omega_{sr,min}", 2*np.pi*self.srf_min_hz, "rad/s", "Minimum self-resonance frequency", constant=True)
+    self.A_max = gp.Variable(r"A_{max}", self.max_A, "m^2", "Maximum area", constant=True)
 
     "-- Process Constants --"
     metal = self.pdk.top_metals[0]
@@ -119,10 +122,11 @@ class InductanceTargetMaxQ:
   def create_model(self):
     objective = self.Q_min**-1
     # Normalized variables
-    C_tot = self.C_p + 2*self.C_s
+    port_factor = 1 if self.single_ended else 2
+    C_tot = self.C_p + port_factor*self.C_s
     rho = self.omega * self.L_s / self.R_s  # inductive reactance
-    gamma = self.omega**2 * self.L_s * C_tot/2  # Capacitive loading
-    delta = self.R_s**2 * C_tot/2 / self.L_s  # Q factor normalization
+    gamma = self.omega**2 * self.L_s * C_tot / port_factor  # Capacitive loading
+    delta = self.R_s**2 * C_tot / port_factor / self.L_s  # Q factor normalization
 
     k_sr = self.omega_sr_min / self.omega
 
@@ -130,7 +134,7 @@ class InductanceTargetMaxQ:
         self.L_s == self.L_req,  # Required inductance
 
         # normalized Q constraint
-        self.Q_min * (2*self.R_p + (rho**2 + 1)*self.R_s) / (rho * 2*self.R_p) + delta + gamma <= 1,
+        self.Q_min * (port_factor*self.R_p + (rho**2 + 1)*self.R_s) / (rho * port_factor*self.R_p) + delta + gamma <= 1,
 
         # self resonance
         delta + gamma <= 1,
@@ -141,7 +145,7 @@ class InductanceTargetMaxQ:
         # PDK dimensional constraints
         self.w >= self.w_min,
         self.s >= self.s_min,
-        #self.d_out**2 <= self.A_max,
+        self.d_out**2 <= self.A_max,
 
         #Geometry constriants
         ## TODO: Warn when this constraint is not tight in the solution
@@ -162,8 +166,15 @@ class InductanceTargetMaxQ:
 
     d_in = v(self.d_avg) - (v(self.n) - 1)*v(self.s) - v(self.n)*v(self.w)
 
+    port_factor = 1 if self.single_ended else 2
+    C_tot = v(self.C_p) + port_factor*v(self.C_s)
+    omega_sr = np.sqrt(port_factor/(v(self.L_s)*C_tot) - v(self.R_s)**2/v(self.L_s)**2)
+    srf = omega_sr / (2*np.pi)
+
     return f"""
 L_s={v(self.L_s).to("nH")}
+Q={v(self.Q_min)}
+SRF={srf.to("GHz")}
 w={v(self.w).to("um")}
 s={v(self.s).to("um")}
 l={v(self.l).to("um")}
