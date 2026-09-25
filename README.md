@@ -3,7 +3,7 @@
 
 This repository contains code for an Open Source tool capable of inductor geometry
 synthesis. It is heavily based on the work by Hershenson et al. ([doi.org/10.1109/DAC.1999.782241](https://doi.org/10.1109/DAC.1999.782241)) with some modifications
-as described in [doi.org/10.1109/DAC.1999.782241](https://doi.org/10.1109/DAC.1999.782241).
+as described in [doi.org/10.3217/ge5c-t331](https://doi.org/10.3217/ge5c-t331).
 
 The code in this repository is in process of being cleaned up and refactored, so
 API changes are expected. Please open an issue if you have any questions.
